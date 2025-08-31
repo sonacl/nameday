@@ -70,7 +70,7 @@
               />
               <button
                 id="addReminder"
-                class="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-500"
+                class="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>
@@ -131,7 +131,7 @@
       const addReminder = document.getElementById('addReminder');
       const reminderList = document.getElementById('reminderList');
       const selected = new Set();
-      const reminders = new Set(['720']); // Default: 1 day before at 12:00 (12 hours before)
+      const reminders = new Set(['720']);
       function updateLink() {
         const names = [...selected];
         const url = new URL('/calendar.ics', location.origin);
@@ -146,26 +146,34 @@
 
       function renderReminders() {
         reminderList.innerHTML = '';
-        [...reminders].forEach(minutes => {
+        [...reminders].forEach((minutes) => {
+          const m = Number(minutes);
           let text = '';
-          const totalHours = Math.floor(minutes / 60);
-          const mins = minutes % 60;
-          
-          if (totalHours >= 24) {
-            const days = Math.floor(totalHours / 24);
-            const hours = totalHours % 24;
-            text = `${days} nappal előtte ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}-kor`;
-          } else if (totalHours >= 12) {
-            text = `1 nappal előtte ${totalHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}-kor`;
+          const days = Math.floor(m / 1440);
+          const remainingMins = m - days * 1440;
+          const hours = Math.floor(remainingMins / 60);
+          const mins = remainingMins % 60;
+
+          if (m >= 0) {
+            const displayDays = days + 1;
+            text = `${displayDays} nappal előtte ${hours.toString().padStart(2, '0')}:${mins
+              .toString()
+              .padStart(2, '0')}-kor`;
           } else {
-            text = `${totalHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}-kor`;
+            text = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}-kor`;
           }
-          
+
           const chip = document.createElement('span');
-          chip.className = 'inline-flex items-center bg-green-500/10 text-green-300 px-2 py-1 rounded text-xs border border-green-500/20';
+          chip.className =
+            'inline-flex items-center bg-green-500/10 text-green-300 px-2 py-1 rounded text-xs border border-green-500/20';
           chip.innerHTML = `${text} <button class="ml-1 text-green-300 hover:text-green-200" onclick="removeReminder('${minutes}')">×</button>`;
           reminderList.appendChild(chip);
         });
+
+        const limitReached = reminders.size >= 2;
+        addReminder.disabled = limitReached;
+        reminderDays.disabled = limitReached;
+        reminderTime.disabled = limitReached;
       }
 
       function removeReminder(minutes) {
@@ -175,9 +183,10 @@
       }
 
       addReminder.addEventListener('click', () => {
+        if (reminders.size >= 2) return;
         const days = parseInt(reminderDays.value);
         const [hours, mins] = reminderTime.value.split(':').map(Number);
-        const totalMinutes = days * 1440 + hours * 60 + mins;
+        const totalMinutes = (days - 1) * 1440 + hours * 60 + mins;
         reminders.add(totalMinutes.toString());
         renderReminders();
         updateLink();
