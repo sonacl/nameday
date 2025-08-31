@@ -41,12 +41,42 @@
               <input
                 id="mainOnly"
                 type="checkbox"
+                checked
                 class="rounded bg-gray-800 border-gray-700 text-blue-600"
               />
               Csak fő névnapok
             </label>
           </div>
           <div id="chips" class="flex flex-wrap gap-2"></div>
+          <div class="mt-4">
+            <label class="block text-xs uppercase tracking-wide text-gray-400 mb-1"
+              >Emlékeztetők</label
+            >
+            <div class="flex items-center gap-2 mb-2">
+              <select
+                id="reminderDays"
+                class="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-gray-100"
+              >
+                <option value="1">1 nappal</option>
+                <option value="2">2 nappal</option>
+                <option value="7">1 héttel</option>
+              </select>
+              <span class="text-xs text-gray-400">előtte</span>
+              <input
+                id="reminderTime"
+                type="time"
+                value="12:00"
+                class="bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-gray-100"
+              />
+              <button
+                id="addReminder"
+                class="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-500"
+              >
+                +
+              </button>
+            </div>
+            <div id="reminderList" class="flex flex-wrap gap-1"></div>
+          </div>
         </div>
 
         <div class="mt-6 flex gap-3 items-center">
@@ -61,6 +91,14 @@
             Másolás
           </button>
           <span id="status" class="text-sm text-gray-400"></span>
+        </div>
+
+        <div
+          id="mobileHelp"
+          class="mt-3 p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-lg text-xs text-yellow-200 hidden"
+        >
+          <strong>Android:</strong> A fájl le fog tölteni. Nyomj a meginytásra, majd válaszd a
+          "Naptár" alkalmazást.
         </div>
 
         <pre
@@ -88,18 +126,64 @@
       const status = document.getElementById('status');
       const preview = document.getElementById('preview');
       const mainOnly = document.getElementById('mainOnly');
+      const reminderDays = document.getElementById('reminderDays');
+      const reminderTime = document.getElementById('reminderTime');
+      const addReminder = document.getElementById('addReminder');
+      const reminderList = document.getElementById('reminderList');
       const selected = new Set();
-
+      const reminders = new Set(['2160']);
       function updateLink() {
         const names = [...selected];
         const url = new URL('/calendar.ics', location.origin);
         if (names.length) {
           url.searchParams.set('subscribednames', names.join(','));
           if (mainOnly.checked) url.searchParams.set('mainonly', 'true');
+          if (reminders.size) url.searchParams.set('reminders', [...reminders].join(','));
         }
         link.href = url;
         preview.textContent = url;
       }
+
+      function renderReminders() {
+        reminderList.innerHTML = '';
+        [...reminders].forEach((minutes) => {
+          let text = '';
+          if (minutes >= 1440) {
+            const days = Math.floor(minutes / 1440);
+            const remainingMins = minutes - days * 1440;
+            const hours = Math.floor(remainingMins / 60);
+            const mins = remainingMins % 60;
+            text = `${days} nappal előtte ${hours.toString().padStart(2, '0')}:${mins
+              .toString()
+              .padStart(2, '0')}-kor`;
+          } else {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            text = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}-kor`;
+          }
+
+          const chip = document.createElement('span');
+          chip.className =
+            'inline-flex items-center bg-green-500/10 text-green-300 px-2 py-1 rounded text-xs border border-green-500/20';
+          chip.innerHTML = `${text} <button class="ml-1 text-green-300 hover:text-green-200" onclick="removeReminder('${minutes}')">×</button>`;
+          reminderList.appendChild(chip);
+        });
+      }
+
+      function removeReminder(minutes) {
+        reminders.delete(minutes);
+        renderReminders();
+        updateLink();
+      }
+
+      addReminder.addEventListener('click', () => {
+        const days = parseInt(reminderDays.value);
+        const [hours, mins] = reminderTime.value.split(':').map(Number);
+        const totalMinutes = days * 1440 + hours * 60 + mins;
+        reminders.add(totalMinutes.toString());
+        renderReminders();
+        updateLink();
+      });
 
       function renderChips() {
         chips.innerHTML = '';
@@ -176,7 +260,13 @@
         }
       });
 
+      const isAndroidChrome = /Android.*Chrome/.test(navigator.userAgent);
+      if (isAndroidChrome) {
+        document.getElementById('mobileHelp').classList.remove('hidden');
+      }
+
       mainOnly.addEventListener('change', updateLink);
+      renderReminders();
       updateLink();
     </script>
   </body>

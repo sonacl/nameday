@@ -40,7 +40,7 @@ function getEvents(names, mainOnly = false) {
   return events;
 }
 
-function generateICS(events) {
+function generateICS(events, reminderMinutes = [1440]) {
   const currentYear = new Date().getFullYear();
 
   const header = [
@@ -50,24 +50,34 @@ function generateICS(events) {
     'CALSCALE:GREGORIAN',
   ].join('\n');
 
-  const footer = 'END:VCALENDAR';
-
   const vevents = events
     .map(({ name, month, day }) => {
       const dtstart = `${currentYear}${month}${day}`;
-      return [
+      const vevent = [
         'BEGIN:VEVENT',
         `UID:${name}-${month}${day}@nevnapok.example.com`,
         `DTSTAMP:${dtstart}T000000Z`,
         `DTSTART;VALUE=DATE:${dtstart}`,
         'RRULE:FREQ=YEARLY',
         `SUMMARY:Névnap: ${name}`,
-        'END:VEVENT',
-      ].join('\n');
+      ];
+      
+      reminderMinutes.forEach(minutes => {
+        if (minutes > 0) {
+          vevent.push('BEGIN:VALARM');
+          vevent.push('ACTION:DISPLAY');
+          vevent.push(`DESCRIPTION:Névnap: ${name}`);
+          vevent.push(`TRIGGER:-PT${minutes}M`);
+          vevent.push('END:VALARM');
+        }
+      });
+      
+      vevent.push('END:VEVENT');
+      return vevent.join('\n');
     })
     .join('\n');
 
-  return `${header}\n${vevents}\n${footer}`;
+  return `${header}\n${vevents}\nEND:VCALENDAR`;
 }
 
 app.get('/calendar.ics', (req, res) => {
@@ -78,8 +88,11 @@ app.get('/calendar.ics', (req, res) => {
     .filter(Boolean);
 
   const mainOnly = req.query.mainonly === 'true';
+  const reminderMinutes = req.query.reminders ? 
+    req.query.reminders.split(',').map(r => parseInt(r)).filter(r => r > 0) : 
+    [1440];
   const events = getEvents(subscribedNames, mainOnly);
-  const icsContent = generateICS(events);
+  const icsContent = generateICS(events, reminderMinutes);
 
   res.setHeader('Content-Type', 'text/calendar');
   res.setHeader('Content-Disposition', 'attachment; filename="nevnapok.ics"');
